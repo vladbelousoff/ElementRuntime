@@ -90,8 +90,8 @@ void UpdateISM(UInstancedStaticMeshComponent* ISM,
 
 } // namespace
 
-struct FElementBoidsWorld {
-    explicit FElementBoidsWorld(AElementZombiesActor& InOwner)
+struct FElementZombiesWorld {
+    explicit FElementZombiesWorld(AElementZombiesActor& InOwner)
         : Owner(InOwner)
         , Bridge(Registry)
     {
@@ -100,46 +100,46 @@ struct FElementBoidsWorld {
         BuildSystems();
     }
 
-    ~FElementBoidsWorld() = default;
+    ~FElementZombiesWorld() = default;
 
     void Tick(float InDeltaSeconds)
     {
-        TRACE_CPUPROFILER_EVENT_SCOPE(ElementBoids::Tick);
+        TRACE_CPUPROFILER_EVENT_SCOPE(ElementZombies::Tick);
         {
-            TRACE_CPUPROFILER_EVENT_SCOPE(ElementBoids::SetDeltaSeconds);
+            TRACE_CPUPROFILER_EVENT_SCOPE(ElementZombies::SetDeltaSeconds);
             DeltaSeconds = InDeltaSeconds;
         }
         {
-            TRACE_CPUPROFILER_EVENT_SCOPE(ElementBoids::UpdateInputContextStep);
+            TRACE_CPUPROFILER_EVENT_SCOPE(ElementZombies::UpdateInputContextStep);
             UpdateInputContext();
         }
         {
-            TRACE_CPUPROFILER_EVENT_SCOPE(ElementBoids::ActivateBridge);
+            TRACE_CPUPROFILER_EVENT_SCOPE(ElementZombies::ActivateBridge);
             Bridge.Activate();
         }
         {
-            TRACE_CPUPROFILER_EVENT_SCOPE(ElementBoids::RebuildViewCaches);
+            TRACE_CPUPROFILER_EVENT_SCOPE(ElementZombies::RebuildViewCaches);
             Bridge.RebuildViewCaches();
         }
         {
-            TRACE_CPUPROFILER_EVENT_SCOPE(ElementBoids::RunSystems);
+            TRACE_CPUPROFILER_EVENT_SCOPE(ElementZombies::RunSystems);
             Bridge.BeginSystemExecution();
             Scheduler.run(Systems, Registry);
             Bridge.EndSystemExecution();
         }
         {
-            TRACE_CPUPROFILER_EVENT_SCOPE(ElementBoids::FlushStagedSpawns);
+            TRACE_CPUPROFILER_EVENT_SCOPE(ElementZombies::FlushStagedSpawns);
             Bridge.FlushStagedSpawns();
         }
         {
-            TRACE_CPUPROFILER_EVENT_SCOPE(ElementBoids::ApplyQueuedDamage);
+            TRACE_CPUPROFILER_EVENT_SCOPE(ElementZombies::ApplyQueuedDamage);
             Bridge.ApplyQueuedDamage();
         }
         {
             // Expire zombies whose HP reached zero from damage_entity calls this tick.
             // Oak's zombie_death system only sees HP during the scheduler pass (before
             // damage is applied), so deaths from queued damage need a native post-damage sweep.
-            TRACE_CPUPROFILER_EVENT_SCOPE(ElementBoids::ExpireDeadEntities);
+            TRACE_CPUPROFILER_EVENT_SCOPE(ElementZombies::ExpireDeadEntities);
             Registry.view([this](elm::Entity Entity, const FElementHealth& HP, const FElementZombie&) {
                 if (HP.HP <= 0.0f) {
                     Bridge.ExpireEntity(Entity);
@@ -147,11 +147,11 @@ struct FElementBoidsWorld {
             });
         }
         {
-            TRACE_CPUPROFILER_EVENT_SCOPE(ElementBoids::DestroyExpiredEntitiesStep);
+            TRACE_CPUPROFILER_EVENT_SCOPE(ElementZombies::DestroyExpiredEntitiesStep);
             DestroyExpiredEntities();
         }
         {
-            TRACE_CPUPROFILER_EVENT_SCOPE(ElementBoids::SyncVisualsStep);
+            TRACE_CPUPROFILER_EVENT_SCOPE(ElementZombies::SyncVisualsStep);
             SyncVisuals();
         }
     }
@@ -172,6 +172,10 @@ struct FElementBoidsWorld {
         return Result;
     }
 
+    // Number of zombies alive as of the last SyncVisuals() pass. Reused from
+    // visual sync so the HUD does not trigger a second full registry iteration.
+    int32 GetZombieCount() const { return ZombieCount; }
+
 private:
     void SetupInputContext()
     {
@@ -187,7 +191,7 @@ private:
 
     void UpdateInputContext()
     {
-        TRACE_CPUPROFILER_EVENT_SCOPE(ElementBoids::UpdateInputContext);
+        TRACE_CPUPROFILER_EVENT_SCOPE(ElementZombies::UpdateInputContext);
         auto& Ctx = Bridge.GetInputContext();
         Ctx.CameraYaw = Owner.CameraYaw;
         Ctx.WaveEnemyCount = Owner.WaveEnemyCount;
@@ -240,7 +244,7 @@ private:
 
     void DestroyExpiredEntities()
     {
-        TRACE_CPUPROFILER_EVENT_SCOPE(ElementBoids::DestroyExpiredEntities);
+        TRACE_CPUPROFILER_EVENT_SCOPE(ElementZombies::DestroyExpiredEntities);
         auto Taken = Bridge.TakeExpired();
         int KillsThisFrame = 0;
         for (const auto Entity : Taken) {
@@ -258,7 +262,7 @@ private:
 
     void SyncVisuals()
     {
-        TRACE_CPUPROFILER_EVENT_SCOPE(ElementBoids::SyncVisuals);
+        TRACE_CPUPROFILER_EVENT_SCOPE(ElementZombies::SyncVisuals);
         ZombieTransforms.Reset(FMath::Max(ZombieTransforms.Num(), Owner.WaveEnemyCount));
         PlayerInstances.Reset(1);
 
@@ -283,6 +287,8 @@ private:
             ZombieTransforms.Add(FTransform(Rotation, WorldPos, FVector(Scale * Zombie.Size * HealthFrac)));
         });
 
+        ZombieCount = ZombieTransforms.Num();
+
         Registry.view([&](const FElementPlayer&, const FElementPosition& Pos) {
             const FVector WorldPos = ActorTransform.TransformPosition(FVector(Pos.X, Pos.Y, Pos.Z));
             PlayerInstances.Add(FTransform(FRotator::ZeroRotator, WorldPos, FVector(1.5f)));
@@ -299,6 +305,7 @@ private:
     std::vector<elm::System> Systems;
     TArray<FTransform> ZombieTransforms;
     TArray<FTransform> PlayerInstances;
+    int32 ZombieCount = 0;
     float DeltaSeconds = 0.0f;
 };
 
@@ -403,9 +410,10 @@ void AElementZombiesActor::Tick(float DeltaSeconds)
         SpringArm->SetWorldLocation(GetActorTransform().TransformPosition(Simulation->GetPlayerPosition()));
 
         const FElementGameState GS = Simulation->GetGameState();
+        const int32 EnemyCount = Simulation->GetZombieCount();
         if (GEngine) {
             GEngine->AddOnScreenDebugMessage(1, 0.0f, FColor::Yellow,
-                FString::Printf(TEXT("Wave: %d   Kills: %d"), GS.Wave, GS.Kills));
+                FString::Printf(TEXT("Wave: %d   Enemies: %d   Kills: %d"), GS.Wave, EnemyCount, GS.Kills));
         }
     }
 }
@@ -422,7 +430,7 @@ void AElementZombiesActor::RestartSimulation()
         PlayerISM->ClearInstances();
     }
 
-    Simulation = MakeShared<FElementBoidsWorld>(*this);
+    Simulation = MakeShared<FElementZombiesWorld>(*this);
     bSimulationPaused = false;
     UpdateLoadedOakScriptTimestamp();
     NextOakScriptReloadCheckTime = GetWorld() ? GetWorld()->GetTimeSeconds() + 0.25 : 0.25;

@@ -10,7 +10,7 @@
 class UCameraComponent;
 class UInstancedStaticMeshComponent;
 class USpringArmComponent;
-struct FElementBoidsWorld;
+struct FElementZombiesWorld;
 
 UCLASS()
 class ELEMENTRUNTIME_API AElementZombiesActor : public AActor {
@@ -88,7 +88,7 @@ private:
     bool ReloadOakScriptIfChanged();
     void UpdateLoadedOakScriptTimestamp();
 
-    TSharedPtr<FElementBoidsWorld> Simulation;
+    TSharedPtr<FElementZombiesWorld> Simulation;
     bool bSimulationPaused = false;
     FString LoadedOakScriptPath;
     FDateTime LoadedOakScriptWriteTime = FDateTime::MinValue();
