@@ -8,6 +8,7 @@
 #include "Camera/CameraComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SceneComponent.h"
+#include "DrawDebugHelpers.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/PlayerController.h"
@@ -175,6 +176,14 @@ struct FElementZombiesWorld {
     // Number of zombies alive as of the last SyncVisuals() pass. Reused from
     // visual sync so the HUD does not trigger a second full registry iteration.
     int32 GetZombieCount() const { return ZombieCount; }
+
+    // Precomputed flame cone for the current tick, for debug visualization.
+    FElementFlameFrustum GetFlameFrustum() const
+    {
+        FElementFlameFrustum Result;
+        Registry.view([&](const FElementFlameFrustum& Frustum) { Result = Frustum; });
+        return Result;
+    }
 
 private:
     void SetupInputContext()
@@ -415,7 +424,49 @@ void AElementZombiesActor::Tick(float DeltaSeconds)
             GEngine->AddOnScreenDebugMessage(1, 0.0f, FColor::Yellow,
                 FString::Printf(TEXT("Wave: %d   Enemies: %d   Kills: %d"), GS.Wave, EnemyCount, GS.Kills));
         }
+
+        DrawFlameFrustum(Simulation->GetFlameFrustum(), Simulation->GetPlayerPosition().Z);
     }
+}
+
+void AElementZombiesActor::DrawFlameFrustum(const FElementFlameFrustum& Flame, float OriginZ)
+{
+    if (!Flame.Active || Flame.RangeSq <= 0.0f) {
+        return;
+    }
+
+    UWorld* World = GetWorld();
+    if (!World) {
+        return;
+    }
+
+    const FTransform& ActorTransform = GetActorTransform();
+    const float Range = FMath::Sqrt(Flame.RangeSq);
+    const float HalfAngle = FMath::Acos(FMath::Clamp(Flame.CosHalf, -1.0f, 1.0f));
+    const float BaseAngle = FMath::Atan2(Flame.DY, Flame.DX);
+
+    // Triangle fan: apex at the player, rim sampled along the cone arc. Built in
+    // simulation space and transformed so it tracks the actor like the meshes do.
+    constexpr int32 Segments = 24;
+    TArray<FVector> Verts;
+    TArray<int32> Indices;
+    Verts.Reserve(Segments + 2);
+    Verts.Add(ActorTransform.TransformPosition(FVector(Flame.OX, Flame.OY, OriginZ)));
+    for (int32 i = 0; i <= Segments; ++i) {
+        const float Angle = BaseAngle - HalfAngle + (2.0f * HalfAngle) * (static_cast<float>(i) / Segments);
+        const FVector RimSim(Flame.OX + FMath::Cos(Angle) * Range,
+                             Flame.OY + FMath::Sin(Angle) * Range,
+                             OriginZ);
+        Verts.Add(ActorTransform.TransformPosition(RimSim));
+    }
+    for (int32 i = 1; i <= Segments; ++i) {
+        Indices.Add(0);
+        Indices.Add(i);
+        Indices.Add(i + 1);
+    }
+
+    // Very transparent fill so the cone reads as an overlay rather than a solid.
+    DrawDebugMesh(World, Verts, Indices, FColor(255, 90, 0, 24), /*bPersistent=*/false, /*LifeTime=*/-1.0f);
 }
 
 void AElementZombiesActor::RestartSimulation()

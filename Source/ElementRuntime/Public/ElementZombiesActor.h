@@ -11,6 +11,7 @@ class UCameraComponent;
 class UInstancedStaticMeshComponent;
 class USpringArmComponent;
 struct FElementZombiesWorld;
+struct FElementFlameFrustum;
 
 UCLASS()
 class ELEMENTRUNTIME_API AElementZombiesActor : public AActor {
@@ -36,16 +37,16 @@ public:
     float WaveSpawnRadius = 15000.0f;
 
     UPROPERTY(EditAnywhere, Category = "Element|Flamethrower")
-    float FlameRange = 500.0f;
+    float FlameRange = 5000.0f;
 
     UPROPERTY(EditAnywhere, Category = "Element|Flamethrower")
     float FlameAngle = 60.0f;
 
     UPROPERTY(EditAnywhere, Category = "Element|Flamethrower")
-    float FlameDamage = 150.0f;
+    float FlameDamage = 250.0f;
 
     UPROPERTY(EditAnywhere, Category = "Element")
-    float ZombieScale = 4.0f;
+    float ZombieScale = 1.0f;
 
     UPROPERTY(EditAnywhere, Category = "Element")
     float ZombieSpeed = 120.0f;
@@ -87,6 +88,7 @@ private:
     void RestartSimulation();
     bool ReloadOakScriptIfChanged();
     void UpdateLoadedOakScriptTimestamp();
+    void DrawFlameFrustum(const FElementFlameFrustum& Flame, float OriginZ);
 
     TSharedPtr<FElementZombiesWorld> Simulation;
     bool bSimulationPaused = false;
