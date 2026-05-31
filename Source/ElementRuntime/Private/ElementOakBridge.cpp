@@ -792,23 +792,52 @@ void FElementOakBridge::QueryAvoidance(elm::Entity Entity, float Range, float St
 
     float SepX = 0.0f, SepY = 0.0f;
 
-    for (int Gy = Y0; Gy <= Y1; ++Gy) {
-        for (int Gx = X0; Gx <= X1; ++Gx) {
-            auto& Cell = SpatialGrid[Gy * GridDim + Gx];
-            const int Count = static_cast<int>(Cell.Xs.size());
-            for (int K = 0; K < Count; ++K) {
-                const float Dx = Cell.Xs[K] - Pos->X;
-                const float Dy = Cell.Ys[K] - Pos->Y;
-                const float D2 = Dx * Dx + Dy * Dy;
-                if (D2 < RangeSq && D2 > 0.01f) {
-                    const float InvDist = FMath::InvSqrt(D2);
-                    const float Dist = D2 * InvDist;
-                    const float Proximity = FMath::Clamp((Range - Dist) / Range, 0.0f, 1.0f);
-                    const float Weight = Proximity * Proximity;
-                    SepX -= Dx * InvDist * Weight;
-                    SepY -= Dy * InvDist * Weight;
-                }
+    // Cap how many neighbours a single zombie examines. When ~10k zombies
+    // converge on the player they pack into a handful of grid cells, and an
+    // uncapped scan degenerates toward O(N^2) (the game-thread spike). The
+    // separation force is dominated by the nearest few neighbours, so a bounded
+    // sample budget keeps the behaviour visually equivalent while making the
+    // per-zombie cost O(1) regardless of how tightly the herd clumps.
+    constexpr int MaxNeighborSamples = 48;
+    int Sampled = 0;
+
+    auto ScanCell = [&](int Gx, int Gy) -> bool {
+        const auto& Cell = SpatialGrid[Gy * GridDim + Gx];
+        const int Count = static_cast<int>(Cell.Xs.size());
+        for (int K = 0; K < Count; ++K) {
+            const float Dx = Cell.Xs[K] - Pos->X;
+            const float Dy = Cell.Ys[K] - Pos->Y;
+            const float D2 = Dx * Dx + Dy * Dy;
+            if (D2 < RangeSq && D2 > 0.01f) {
+                const float InvDist = FMath::InvSqrt(D2);
+                const float Dist = D2 * InvDist;
+                const float Proximity = FMath::Clamp((Range - Dist) / Range, 0.0f, 1.0f);
+                const float Weight = Proximity * Proximity;
+                SepX -= Dx * InvDist * Weight;
+                SepY -= Dy * InvDist * Weight;
             }
+            // Count every entity inspected, not just in-range ones: that is what
+            // bounds the work when a cell holds thousands of (clamped) members.
+            if (++Sampled >= MaxNeighborSamples) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    // Visit the zombie's own cell first: in a clump it holds the nearest, most
+    // relevant neighbours, so the budget is spent where it matters and the push
+    // stays roughly unbiased rather than skewing toward a corner of the window.
+    const int CxClamped = FMath::Clamp(Cx, 0, GridDim - 1);
+    const int CyClamped = FMath::Clamp(Cy, 0, GridDim - 1);
+
+    bool Done = ScanCell(CxClamped, CyClamped);
+    for (int Gy = Y0; !Done && Gy <= Y1; ++Gy) {
+        for (int Gx = X0; !Done && Gx <= X1; ++Gx) {
+            if (Gx == CxClamped && Gy == CyClamped) {
+                continue; // already scanned as the centre cell
+            }
+            Done = ScanCell(Gx, Gy);
         }
     }
 
