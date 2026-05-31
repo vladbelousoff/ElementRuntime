@@ -8,7 +8,7 @@ It lets you drive entity/component simulation from a parallel ECS scheduler insi
 
 - **`FElementRuntimeScheduler`** (`Public/ElementRuntime.h`) — a conflict-aware parallel scheduler that runs `elm::System` batches on Unreal's task graph, precomputing batch assignments so per-frame scheduling is free.
 - **Oak bridge glue** (`ElementOakBridge.*`) — loads `.oak` programs, registers native component types, and turns `@ElementSystem` functions into `elm::System` values.
-- **`AElementBoidsActor`** (`ElementBoidsActor.*`) — a sample actor that spawns and renders an ECS simulation via instanced static meshes, with parameters exposed in the editor.
+- **`AElementZombiesActor`** (`ElementZombiesActor.*`) — a sample actor that spawns and renders an ECS simulation via instanced static meshes, with parameters exposed in the editor.
 - **Content/Scripts** — example Oak scripts (`zombies.oak`, `math/vec3.oak`).
 
 The `ElementRuntime` module is a `Runtime` module built with C++20, RTTI disabled, and exceptions disabled.
@@ -51,6 +51,6 @@ The build defines `OAK_ATOMIC_REFCOUNT=1` and `OAK_STATIC=1` so the Oak runtime 
 
 ## Usage
 
-Place an `AElementBoidsActor` in a level and adjust its `Element` / `Element|Camera` / `Element|Flamethrower` properties in the editor. On begin play the actor builds the ECS world, loads its Oak scripts, and steps the simulation through `FElementRuntimeScheduler` each tick.
+Place an `AElementZombiesActor` in a level and adjust its `Element` / `Element|Camera` / `Element|Flamethrower` properties in the editor. On begin play the actor builds the ECS world, loads its Oak scripts, and steps the simulation through `FElementRuntimeScheduler` each tick.
 
 See the [Element](https://github.com/vladbelousoff/element.git) README for ECS and scheduler concepts, and the [element-oak-bridge](https://github.com/vladbelousoff/element-oak-bridge.git) README for the Oak integration API.

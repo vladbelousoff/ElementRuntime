@@ -5,7 +5,7 @@
 #include "Misc/DateTime.h"
 #include "Templates/SharedPointer.h"
 
-#include "ElementBoidsActor.generated.h"
+#include "ElementZombiesActor.generated.h"
 
 class UCameraComponent;
 class UInstancedStaticMeshComponent;
@@ -13,12 +13,12 @@ class USpringArmComponent;
 struct FElementBoidsWorld;
 
 UCLASS()
-class ELEMENTRUNTIME_API AElementBoidsActor : public AActor {
+class ELEMENTRUNTIME_API AElementZombiesActor : public AActor {
     GENERATED_BODY()
 
 public:
-    AElementBoidsActor();
-    ~AElementBoidsActor() override;
+    AElementZombiesActor();
+    ~AElementZombiesActor() override;
 
     void BeginPlay() override;
     void Tick(float DeltaSeconds) override;

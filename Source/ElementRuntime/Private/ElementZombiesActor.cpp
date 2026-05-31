@@ -1,4 +1,4 @@
-#include "ElementBoidsActor.h"
+#include "ElementZombiesActor.h"
 
 #include "ElementComponents.h"
 #include "ElementOakBridge.h"
@@ -39,12 +39,12 @@ static const FKey GKeyMapping[] = {
 };
 static_assert(UE_ARRAY_COUNT(GKeyMapping) == static_cast<int32>(EElementInputKey::Count));
 
-FString ResolveOakScriptFileName(const AElementBoidsActor& Owner)
+FString ResolveOakScriptFileName(const AElementZombiesActor& Owner)
 {
     return Owner.GameScriptFileName.IsEmpty() ? FString(TEXT("zombies.oak")) : Owner.GameScriptFileName;
 }
 
-FString ResolveOakScriptPath(const AElementBoidsActor& Owner)
+FString ResolveOakScriptPath(const AElementZombiesActor& Owner)
 {
     const FString ScriptName = ResolveOakScriptFileName(Owner);
     if (FPaths::IsRelative(ScriptName)) {
@@ -91,7 +91,7 @@ void UpdateISM(UInstancedStaticMeshComponent* ISM,
 } // namespace
 
 struct FElementBoidsWorld {
-    explicit FElementBoidsWorld(AElementBoidsActor& InOwner)
+    explicit FElementBoidsWorld(AElementZombiesActor& InOwner)
         : Owner(InOwner)
         , Bridge(Registry)
     {
@@ -292,7 +292,7 @@ private:
         UpdateISM(Owner.PlayerISM, PlayerInstances);
     }
 
-    AElementBoidsActor& Owner;
+    AElementZombiesActor& Owner;
     elm::Registry Registry;
     FElementOakBridge Bridge;
     FElementRuntimeScheduler Scheduler;
@@ -302,7 +302,7 @@ private:
     float DeltaSeconds = 0.0f;
 };
 
-AElementBoidsActor::AElementBoidsActor()
+AElementZombiesActor::AElementZombiesActor()
 {
     PrimaryActorTick.bCanEverTick = true;
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
@@ -339,9 +339,9 @@ AElementBoidsActor::AElementBoidsActor()
     }
 }
 
-AElementBoidsActor::~AElementBoidsActor() = default;
+AElementZombiesActor::~AElementZombiesActor() = default;
 
-void AElementBoidsActor::BeginPlay()
+void AElementZombiesActor::BeginPlay()
 {
     Super::BeginPlay();
 
@@ -359,7 +359,7 @@ void AElementBoidsActor::BeginPlay()
     }
 }
 
-void AElementBoidsActor::Tick(float DeltaSeconds)
+void AElementZombiesActor::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
 
@@ -410,7 +410,7 @@ void AElementBoidsActor::Tick(float DeltaSeconds)
     }
 }
 
-void AElementBoidsActor::RestartSimulation()
+void AElementZombiesActor::RestartSimulation()
 {
     Simulation.Reset();
 
@@ -428,7 +428,7 @@ void AElementBoidsActor::RestartSimulation()
     NextOakScriptReloadCheckTime = GetWorld() ? GetWorld()->GetTimeSeconds() + 0.25 : 0.25;
 }
 
-bool AElementBoidsActor::ReloadOakScriptIfChanged()
+bool AElementZombiesActor::ReloadOakScriptIfChanged()
 {
     const FString ScriptPath = ResolveOakScriptPath(*this);
     const FDateTime WriteTime = IFileManager::Get().GetTimeStamp(*ScriptPath);
@@ -451,7 +451,7 @@ bool AElementBoidsActor::ReloadOakScriptIfChanged()
     return false;
 }
 
-void AElementBoidsActor::UpdateLoadedOakScriptTimestamp()
+void AElementZombiesActor::UpdateLoadedOakScriptTimestamp()
 {
     LoadedOakScriptPath = ResolveOakScriptPath(*this);
     LoadedOakScriptWriteTime = IFileManager::Get().GetTimeStamp(*LoadedOakScriptPath);
