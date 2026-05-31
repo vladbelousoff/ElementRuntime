@@ -1,0 +1,293 @@
+import * from math.vec3;
+
+@ElementComponentView
+record Position { x: number; y: number; z: number; }
+
+@ElementComponent
+record Velocity { x: number; y: number; z: number; }
+
+@ElementComponent
+record Health { hp: number; max_hp: number; }
+
+@ElementComponentView
+record Zombie { speed_mul: number; size: number; }
+
+@ElementComponentView
+record Player;
+
+@ElementComponent
+record PlayerInput { forward: number; right: number; up: number; }
+
+@ElementComponent
+record CameraState { yaw: number; }
+
+@ElementComponent
+record Flame { active: bool; range: number; angle: number; }
+
+/* Per-tick cache of the player's flame cone, precomputed once by
+   update_flame_frustum so flame_damage avoids redoing the trig and the
+   player-state lookups for every single zombie. */
+@ElementComponentView
+record FlameFrustum {
+    active: bool;
+    ox: number; oy: number;
+    dx: number; dy: number;
+    cos_half: number;
+    range_sq: number;
+}
+
+@ElementComponent
+record GameState { wave: number; spawn_timer: number; kills: number; initialized: bool; spawns_remaining: number; }
+
+fn deg_to_rad(deg: number) -> number {
+    return deg * pi() / 180.0;
+}
+
+fn rand_range(lo: number, hi: number) -> number {
+    return random() * (hi - lo) + lo;
+}
+
+fn spawn_zombie(px: number, py: number, pz: number) {
+    let angle = random() * pi() * 2.0;
+    let spawn_radius = get_wave_spawn_radius();
+    let radius = rand_range(spawn_radius * 0.5, spawn_radius);
+    let size = rand_range(0.5, 1.8);
+
+    let e = spawn_entity();
+    let mut pos = Position.emplace(e);
+    pos.x = px + cos(angle) * radius;
+    pos.y = py + sin(angle) * radius;
+    pos.z = pz;
+
+    let mut vel = Velocity.emplace(e);
+    vel.x = 0.0;
+    vel.y = 0.0;
+    vel.z = 0.0;
+
+    let mut hp = Health.emplace(e);
+    hp.hp = 100.0 * size;
+    hp.max_hp = 100.0 * size;
+
+    let mut zombie = Zombie.emplace(e);
+    zombie.speed_mul = rand_range(0.65, 1.28);
+    zombie.size = size;
+}
+
+fn spawn_wave(px: number, py: number, pz: number, count: number) {
+    for i from 0 to count {
+        spawn_zombie(px, py, pz);
+    }
+}
+
+/* --- initialization --- */
+
+let game_e = spawn_entity();
+let mut gs = GameState.emplace(game_e);
+gs.wave = 0;
+gs.spawn_timer = 2.0;
+gs.kills = 0;
+gs.initialized = false;
+gs.spawns_remaining = 0;
+
+let player_e = spawn_entity();
+Position.emplace(player_e);
+Velocity.emplace(player_e);
+let mut php = Health.emplace(player_e);
+php.hp = 1000.0;
+php.max_hp = 1000.0;
+Player.emplace(player_e);
+PlayerInput.emplace(player_e);
+CameraState.emplace(player_e);
+let mut flame = Flame.emplace(player_e);
+flame.active = false;
+flame.range = get_flame_range();
+flame.angle = get_flame_angle();
+FlameFrustum.emplace(player_e);
+
+/* --- systems --- */
+
+@ElementSystem
+fn update_input(entity: Entity, dt: number, mut input: PlayerInput, mut cam: CameraState, mut flame: Flame, player: Player) {
+    input.forward = 0.0;
+    input.right = 0.0;
+    input.up = 0.0;
+
+    if is_key_down(InputKey.W) || is_key_down(InputKey.Up) { input.forward = input.forward + 1.0; }
+    if is_key_down(InputKey.S) || is_key_down(InputKey.Down) { input.forward = input.forward - 1.0; }
+    if is_key_down(InputKey.D) || is_key_down(InputKey.Right) { input.right = input.right + 1.0; }
+    if is_key_down(InputKey.A) || is_key_down(InputKey.Left) { input.right = input.right - 1.0; }
+
+    cam.yaw = get_camera_yaw();
+    flame.active = is_key_down(InputKey.Space);
+}
+
+@ElementSystem
+fn move_player(entity: Entity, dt: number, mut pos: Position, input: PlayerInput, cam: CameraState, player: Player) {
+    let speed = 400.0;
+    let yaw_rad = deg_to_rad(cam.yaw);
+
+    let cam_fwd = vec3(cos(yaw_rad), sin(yaw_rad), 0.0);
+    let cam_right = vec3(-cam_fwd.y, cam_fwd.x, 0.0);
+    let dir = cam_fwd.scale(input.forward).add(cam_right.scale(input.right));
+
+    pos.x += dir.x * speed * dt;
+    pos.y += dir.y * speed * dt;
+}
+
+@ElementSystem
+fn manage_waves(entity: Entity, dt: number, mut gs: GameState,
+                zombies: ZombieView weak,
+                player_markers: PlayerView weak,
+                all_positions: PositionView weak) {
+    if !gs.initialized {
+        gs.initialized = true;
+        gs.wave = 1;
+        gs.spawn_timer = 1.0;
+        gs.spawns_remaining = 0;
+    }
+
+    let mut px = 0.0;
+    let mut py = 0.0;
+    let mut pz = 0.0;
+    if player_markers.count() > 0 {
+        let pe = player_markers.entity_at(0);
+        let pp = all_positions.of(pe);
+        if pp != none {
+            px = pp.x;
+            py = pp.y;
+            pz = pp.z;
+        }
+    }
+
+    if gs.spawns_remaining > 0 {
+        let batch = min(gs.spawns_remaining, 50);
+        spawn_wave(px, py, pz, batch);
+        gs.spawns_remaining = gs.spawns_remaining - batch;
+        return;
+    }
+
+    gs.spawn_timer -= dt;
+    if gs.spawn_timer <= 0.0 && zombies.count() == 0 {
+        gs.wave += 1;
+        gs.spawns_remaining = get_wave_enemy_count();
+        gs.spawn_timer = 2.0;
+    }
+}
+
+@ElementSystem
+fn zombie_ai(entity: Entity, dt: number,
+             mut vel: Velocity, pos: Position, zombie: Zombie,
+             player_markers: PlayerView weak,
+             all_positions: PositionView weak) {
+    let mut target = vec3(0.0, 0.0, 0.0);
+    let mut has_target = false;
+
+    let pc = player_markers.count();
+    for i from 0 to pc {
+        let pe = player_markers.entity_at(i);
+        let pp = all_positions.of(pe);
+        if pp == none { continue; }
+        target = vec3(pp.x, pp.y, pp.z);
+        has_target = true;
+    }
+
+    if !has_target { return; }
+
+    let my_pos = vec3(pos.x, pos.y, pos.z);
+    let to_target = target.sub(my_pos);
+    let dist = to_target.length();
+
+    let zombie_speed = (get_zombie_speed() + min(dist * 0.1, 80.0)) * zombie.speed_mul;
+    let dir = to_target.normalized();
+
+    vel.x = dir.x * zombie_speed;
+    vel.y = dir.y * zombie_speed;
+    vel.z = 0.0;
+}
+
+@ElementSystem
+fn zombie_avoidance(entity: Entity, dt: number,
+                    mut vel: Velocity, pos: Position, zombie: Zombie) {
+    apply_avoidance(entity, vel, 120.0, 110.0);
+}
+
+@ElementSystem
+fn move_zombies(entity: Entity, dt: number, mut pos: Position, vel: Velocity, zombie: Zombie) {
+    pos.x += vel.x * dt;
+    pos.y += vel.y * dt;
+    pos.z += vel.z * dt;
+}
+
+/* Runs once on the single player entity per tick: collapses the flame cone
+   (origin, direction, half-angle, range) into a FlameFrustum so the per-zombie
+   flame_damage system can skip the trig and player lookups entirely. */
+@ElementSystem
+fn update_flame_frustum(entity: Entity, dt: number,
+                        mut frustum: FlameFrustum,
+                        flame: Flame, pos: Position, cam: CameraState, player: Player) {
+    frustum.active = flame.active;
+    if !flame.active { return; }
+
+    let yaw_rad = deg_to_rad(cam.yaw);
+    frustum.ox = pos.x;
+    frustum.oy = pos.y;
+    frustum.dx = cos(yaw_rad);
+    frustum.dy = sin(yaw_rad);
+    frustum.cos_half = cos(deg_to_rad(flame.angle / 2.0));
+    frustum.range_sq = flame.range * flame.range;
+}
+
+/* flame_damage runs on every zombie entity so the scheduler can chunk it
+   across the full population. It reads the precomputed FlameFrustum via a weak
+   view, so the per-zombie cost is a single lookup plus a distance/cone test. */
+@ElementSystem
+fn flame_damage(entity: Entity, dt: number, pos: Position, zombie: Zombie,
+                flame_frustums: FlameFrustumView weak) {
+    if flame_frustums.count() == 0 { return; }
+    let fr = flame_frustums.of(flame_frustums.entity_at(0));
+    if fr == none { return; }
+    if !fr.active { return; }
+
+    let dx = pos.x - fr.ox;
+    let dy = pos.y - fr.oy;
+    let dist_sq = dx * dx + dy * dy;
+    if dist_sq > fr.range_sq { return; }
+    if dist_sq < 0.001 { return; }
+
+    let inv_dist = 1.0 / sqrt(dist_sq);
+    let dot = fr.dx * dx * inv_dist + fr.dy * dy * inv_dist;
+    if dot > fr.cos_half {
+        damage_entity(entity, get_flame_damage() * dt);
+    }
+}
+
+@ElementSystem
+fn zombie_attack(entity: Entity, dt: number, pos: Position, zombie: Zombie,
+                 player_markers: PlayerView weak,
+                 all_positions: PositionView weak) {
+    let melee_range = 60.0;
+    let melee_sq = melee_range * melee_range;
+    let melee_dps = 25.0;
+
+    let count = player_markers.count();
+    for i from 0 to count {
+        let pe = player_markers.entity_at(i);
+        let pp = all_positions.of(pe);
+        if pp == none { continue; }
+
+        let dx = pp.x - pos.x;
+        let dy = pp.y - pos.y;
+        let dist_sq = dx * dx + dy * dy;
+
+        if dist_sq < melee_sq {
+            damage_entity(pe, melee_dps * dt);
+        }
+    }
+}
+
+@ElementSystem
+fn zombie_death(entity: Entity, dt: number, hp: Health, zombie: Zombie) {
+    if hp.hp <= 0.0 {
+        expire_entity(entity);
+    }
+}

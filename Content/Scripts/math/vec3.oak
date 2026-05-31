@@ -1,0 +1,35 @@
+record Vec3 { x: number; y: number; z: number; }
+
+fn vec3(x: number, y: number, z: number) -> Vec3 {
+    return new Vec3 { x: x, y: y, z: z };
+}
+
+fn Vec3.add(self, other: Vec3) -> Vec3 {
+    return vec3(self.x + other.x, self.y + other.y, self.z + other.z);
+}
+
+fn Vec3.sub(self, other: Vec3) -> Vec3 {
+    return vec3(self.x - other.x, self.y - other.y, self.z - other.z);
+}
+
+fn Vec3.scale(self, s: number) -> Vec3 {
+    return vec3(self.x * s, self.y * s, self.z * s);
+}
+
+fn Vec3.dot(self, other: Vec3) -> number {
+    return self.x * other.x + self.y * other.y + self.z * other.z;
+}
+
+fn Vec3.length_sq(self) -> number {
+    return self.dot(self);
+}
+
+fn Vec3.length(self) -> number {
+    return sqrt(self.length_sq());
+}
+
+fn Vec3.normalized(self) -> Vec3 {
+    let len = self.length();
+    if len < 0.0001 { return vec3(0.0, 0.0, 0.0); }
+    return self.scale(1.0 / len);
+}

@@ -1,0 +1,9 @@
+[submodule "element"]
+	path = element
+	url = git@github.com:vladbelousoff/element.git
+[submodule "element-oak-bridge"]
+	path = element-oak-bridge
+	url = git@github.com:vladbelousoff/element-oak-bridge.git
+[submodule "oak"]
+	path = oak
+	url = git@github.com:vladbelousoff/oak.git
