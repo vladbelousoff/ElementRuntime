@@ -141,7 +141,7 @@ fn manage_waves(entity: Entity, dt: number, mut gs: GameState,
                 all_positions: PositionView weak) {
     if !gs.initialized {
         gs.initialized = true;
-        gs.wave = 1;
+        gs.wave = 0;
         gs.spawn_timer = 1.0;
         gs.spawns_remaining = 0;
     }
