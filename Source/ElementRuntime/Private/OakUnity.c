@@ -44,6 +44,7 @@
 #include "compiler/oak_compiler_scope.c"
 #include "compiler/oak_compiler_stmt.c"
 #include "compiler/oak_compiler_stmt_for.c"
+#include "compiler/oak_compiler_symbols.c"
 #include "compiler/oak_compiler_traits.c"
 #include "compiler/oak_compiler_type_infer.c"
 #include "compiler/oak_compiler_type_infer_call.c"
@@ -58,7 +59,9 @@
 #include "parser/oak_parser_rules.c"
 #include "runtime/oak_bind.c"
 #include "runtime/oak_chunk.c"
+#include "runtime/oak_cycle.c"
 #include "runtime/oak_module.c"
+#include "runtime/oak_symbol.c"
 #include "runtime/oak_type.c"
 #include "runtime/oak_value.c"
 // oak_value_json.c excluded; Unreal builds Oak without the yyjson dependency.

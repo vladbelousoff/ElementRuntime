@@ -450,7 +450,8 @@ void FElementOakBridge::RegisterAttributes()
 
 bool FElementOakBridge::LoadScript(const char* ScriptSource, std::size_t Length)
 {
-    auto* Lexer = oak_lexer_tokenize(ScriptSource, Length, Allocator);
+    const std::string Source(ScriptSource, Length);
+    auto* Lexer = oak_lexer_tokenize(Source.c_str(), Allocator);
     if (oak_lexer_error_count(Lexer) > 0) {
         UE_LOG(LogTemp, Error, TEXT("Oak lexer errors:"));
         oak_lexer_free(Lexer);
@@ -653,7 +654,7 @@ void FElementOakBridge::FlushStagedSpawns()
     StagedEntityMap.clear();
 }
 
-bool FElementOakBridge::TryStageEmplace(elm::Entity Entity, int SlotIndex, oak_value_t* Out)
+bool FElementOakBridge::TryStageEmplace(elm::Entity Entity, int SlotIndex, oak_allocator_t* ValueAllocator, oak_value_t* Out)
 {
     if (!SystemExecutionActive) {
         return false;
@@ -689,7 +690,7 @@ bool FElementOakBridge::TryStageEmplace(elm::Entity Entity, int SlotIndex, oak_v
         Desc.default_construct(Ep.Data);
     }
 
-    *Out = oak_native_record_new(Allocator, GetSlotOakType(SlotIndex), Ep.Data);
+    *Out = oak_native_record_new(ValueAllocator, GetSlotOakType(SlotIndex), Ep.Data);
     return true;
 }
 

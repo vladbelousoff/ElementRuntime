@@ -92,7 +92,7 @@ public:
     int get_slot_count() override { return AllocSlot(); }
     void expire_entity(elm::Entity Entity) override { ExpireEntity(Entity); }
     elm::Entity spawn_entity() override { return SpawnEntity(); }
-    bool try_stage_emplace(elm::Entity Entity, int SlotIndex, oak_value_t* Out) override { return TryStageEmplace(Entity, SlotIndex, Out); }
+    bool try_stage_emplace(elm::Entity Entity, int SlotIndex, oak_allocator_t* ValueAllocator, oak_value_t* Out) override { return TryStageEmplace(Entity, SlotIndex, ValueAllocator, Out); }
 
     FInputContext& GetInputContext() { return InputCtx; }
     const FInputContext& GetInputContext() const { return InputCtx; }
@@ -107,7 +107,7 @@ public:
     void FlushStagedSpawns();
 
     // Returns true and fills *out if entity is staged (created during system execution).
-    bool TryStageEmplace(elm::Entity Entity, int SlotIndex, oak_value_t* Out);
+    bool TryStageEmplace(elm::Entity Entity, int SlotIndex, oak_allocator_t* ValueAllocator, oak_value_t* Out);
 
     std::vector<elm::Entity> TakeExpired();
 
