@@ -78,7 +78,5 @@ struct oak_obj_string_t* oak_value_to_string(struct oak_allocator_t* allocator,
 #include "vm/oak_vm.c"
 #include "vm/oak_vm_arith.c"
 #include "vm/oak_vm_call.c"
-#include "vm/oak_vm_control.c"
 #include "vm/oak_vm_error.c"
 #include "vm/oak_vm_object.c"
-#include "vm/oak_vm_stack.c"
